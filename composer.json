@@ -1,0 +1,16 @@
+{
+    "name": "zane/control-center",
+    "type": "project",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "zanemmm",
+            "email": "pi@0php.net"
+        }
+    ],
+    "require": {
+        "ext-json": "*",
+        "workerman/workerman": "^3.5",
+        "workerman/mysql": "^1.0"
+    }
+}
