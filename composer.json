@@ -10,6 +10,7 @@
     ],
     "require": {
         "ext-json": "*",
+        "ext-sockets": "*",
         "workerman/workerman": "^3.5",
         "workerman/mysql": "^1.0"
     }

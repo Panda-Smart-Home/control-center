@@ -6,6 +6,8 @@
  * Time: 上午10:47
  */
 use Workerman\MySQL\Connection;
+use Workerman\Connection\AsyncUdpConnection;
+use Workerman\Connection\UdpConnection;
 
 function checkScene(Connection $connection, array $requirement)
 {
@@ -132,5 +134,105 @@ function doAction(Connection $connection, $actionId)
         $device['status'] = json_decode($device['status'], true);
         $devices[$device['id']] = $device;
     }
-    //todo
+    // 执行操作
+    foreach ($todo as $item) {
+        if ($devices[$item['id']]['type'] === 'power') {
+            doPowerAction($item['value'], $devices[$item['id']]['ip']);
+        }
+    }
+    return true;
+}
+
+function doPowerAction($switch, $ip)
+{
+    $connection = new AsyncUdpConnection("udp://$ip:9527");
+    $connection->connect();
+    if ($switch) {
+        $connection->send('on|action');
+    } else {
+        $connection->send('off|action');
+    }
+    $connection->close();
+}
+
+function onDeviceConnect(Connection $db, UdpConnection $connection, $data)
+{
+    if (count($data) != 3) {
+        return;
+    }
+    [$_, $id, $type] = $data;
+    $ip = $connection->getRemoteIp();
+    $device = $db->select('*')->from('devices')->where("id = $id")->limit(1)->query();
+    if (empty($device)) {
+        $db->insert('devices')->cols([
+            'id' => $id,
+            'name' => deviceTypeToName($type),
+            'type' => $type,
+            'status' => deviceTypeToStatus($type),
+            'online' => 1,
+            'ip' => $ip,
+            'created_at' => date('Y-m-d H:i:s'),
+            'updated_at' => date('Y-m-d H:i:s'),
+        ])->query();
+        $connection->send('master|handshake');
+        return;
+    }
+    $device = $device[0];
+    $device['ip'] = $ip;
+    $device['updated_at'] = date('Y-m-d H:i:s');
+    $db->update('devices')->cols($device)->where("id = $id")->query();
+    $connection->send('master|handshake');
+}
+
+function deviceTypeToName($type)
+{
+    switch ($type) {
+        case 'power':
+            return '熊猫智能插座';
+        case 'sensirion':
+            return '熊猫温湿度传感器';
+    }
+    return '未知设备';
+}
+
+function deviceTypeToStatus($type)
+{
+    switch ($type) {
+        case 'power':
+            return '{"power":false}';
+        case 'sensirion':
+            return '{"temperature":0.00,"humidity":0.00}';
+    }
+    return '{}';
+}
+
+function updateStatus(Connection $db, $data)
+{
+    if (count($data) != 3) {
+        return;
+    }
+    [$_, $id, $status] = $data;
+    $device = $db->select('*')->from('devices')->where("id = $id")->limit(1)->query();
+    if (empty($device)) {
+        return;
+    }
+    $device = $device[0];
+    switch ($device['type']) {
+        case 'power':
+            updatePowerStatus($db, $device, $status);
+            return;
+        case 'sensirion':
+            // TODO
+            return;
+    }
+}
+
+function updatePowerStatus(Connection $db, $device, $switch)
+{
+    if ($switch == 'on') {
+        $device['status'] = '{"power":true}';
+    } else {
+        $device['status'] = '{"power":false}';
+    }
+    $db->update('devices')->cols($device)->where("id = {$device['id']}")->query();
 }

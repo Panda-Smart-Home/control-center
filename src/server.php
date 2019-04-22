@@ -5,6 +5,7 @@ require 'helper.php';
 
 use Workerman\Worker;
 use Workerman\Connection\UdpConnection;
+use Workerman\Connection\AsyncUdpConnection;
 use Workerman\Lib\Timer;
 use Workerman\MySQL\Connection as Mysql;
 
@@ -39,10 +40,41 @@ $worker->onWorkerStart = function (Worker $worker) {
             }
         }
     });
+
+    Timer::add(3, function () use ($db) {
+        $devices = $db->select('*')->from('devices')->query();
+        if (empty($devices)) {
+            return;
+        }
+        foreach ($devices as $device) {
+            if ($device['ip'] == '0.0.0.0') {
+                return;
+            }
+            $connection = new AsyncUdpConnection("udp://{$device['ip']}:9527");
+            $connection->connect();
+            $connection->send('status|status');
+            $connection->close();
+        }
+    });
 };
 
 $worker->onMessage = function (UdpConnection $connection, $data) {
-    $connection->send($data);
+    echo date("Y-m-d H:i:s") . '---------' . PHP_EOL;
+    echo $data . PHP_EOL;
+    echo '---------' . PHP_EOL;
+    global $db;
+    $data = explode('|', $data);
+    if (!is_array($data) || empty($data)) {
+        return;
+    }
+    switch ($data[0]) {
+        case 'alive':
+            onDeviceConnect($db, $connection, $data);
+            return;
+        case 'status':
+            updateStatus($db, $data);
+            return;
+    }
 };
 
 Worker::runAll();
