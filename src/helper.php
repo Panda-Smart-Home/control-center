@@ -155,7 +155,7 @@ function doPowerAction($switch, $ip)
     $connection->close();
 }
 
-function onDeviceConnect(Connection $db, UdpConnection $connection, $data)
+function onDeviceConnect(Connection $db, UdpConnection $connection, array $data)
 {
     if (count($data) != 3) {
         return;
@@ -166,7 +166,7 @@ function onDeviceConnect(Connection $db, UdpConnection $connection, $data)
     if (empty($device)) {
         $db->insert('devices')->cols([
             'id' => $id,
-            'name' => deviceTypeToName($type),
+            'name' => deviceTypeToName($type) . "_$id",
             'type' => $type,
             'status' => deviceTypeToStatus($type),
             'online' => 1,
@@ -206,7 +206,7 @@ function deviceTypeToStatus($type)
     return '{}';
 }
 
-function updateStatus(Connection $db, $data)
+function updateStatus(Connection $db, array $data)
 {
     if (count($data) != 3) {
         return;
@@ -222,12 +222,12 @@ function updateStatus(Connection $db, $data)
             updatePowerStatus($db, $device, $status);
             return;
         case 'sensirion':
-            // TODO
+            updateSensirionStatus($db, $device, $status);
             return;
     }
 }
 
-function updatePowerStatus(Connection $db, $device, $switch)
+function updatePowerStatus(Connection $db, array $device, $switch)
 {
     if ($switch == 'on') {
         $device['status'] = '{"power":true}';
@@ -235,4 +235,30 @@ function updatePowerStatus(Connection $db, $device, $switch)
         $device['status'] = '{"power":false}';
     }
     $db->update('devices')->cols($device)->where("id = {$device['id']}")->query();
+}
+
+function updateSensirionStatus(Connection $db, $device, $data)
+{
+    $data = explode(',', $data);
+    if (!is_array($data) || count($data) != 2) {
+        return;
+    }
+    $device['status'] = "{\"temperature\":{$data[0]},\"humidity\":{$data[1]}}";
+    $db->update('devices')->cols($device)->where("id = {$device['id']}")->query();
+}
+
+function controlDevice(Connection $db, array $data)
+{
+
+    [$_, $id, $status] = $data;
+    $device = $db->select('*')->from('devices')->where("id = $id")->limit(1)->query();
+    if (empty($device) || !isset($device[0])) {
+        return;
+    }
+    $device = $device[0];
+    if ($status === 'on') {
+        doPowerAction(true, $device['ip']);
+    } elseif ($status === 'off') {
+        doPowerAction(false, $device['ip']);
+    }
 }

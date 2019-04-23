@@ -59,7 +59,8 @@ $worker->onWorkerStart = function (Worker $worker) {
 };
 
 $worker->onMessage = function (UdpConnection $connection, $data) {
-    echo date("Y-m-d H:i:s") . '---------' . PHP_EOL;
+    echo '---------' . PHP_EOL;
+    echo date("Y-m-d H:i:s") . PHP_EOL;
     echo $data . PHP_EOL;
     echo '---------' . PHP_EOL;
     global $db;
@@ -73,6 +74,9 @@ $worker->onMessage = function (UdpConnection $connection, $data) {
             return;
         case 'status':
             updateStatus($db, $data);
+            return;
+        case 'control':
+            controlDevice($db, $data);
             return;
     }
 };
