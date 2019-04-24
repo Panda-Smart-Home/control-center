@@ -16,6 +16,7 @@ $worker->dbConfig = require 'config.php';
 
 $worker->onWorkerStart = function (Worker $worker) {
     global $db;
+    global $timeTable;
     $db = new Mysql(
         $worker->dbConfig['host'],
         $worker->dbConfig['port'],
@@ -23,7 +24,9 @@ $worker->onWorkerStart = function (Worker $worker) {
         $worker->dbConfig['pass'],
         $worker->dbConfig['db']
     );
-    Timer::add(2, function () use ($db) {
+    $timeTable = [];
+    // 执行任务
+    Timer::add(2, function () use ($db, &$timeTable) {
         $jobs = $db->select('*')->from('jobs')->query();
         foreach ($jobs as $job) {
             // 获取场景
@@ -35,12 +38,21 @@ $worker->onWorkerStart = function (Worker $worker) {
             // 获取场景条件
             $requirement = json_decode($scene[0]['requirement'], true);
             // 检查是否满足场景要求
-            if (checkScene($db, $requirement)) {
+            $isContainTime = false;
+            if (checkScene($db, $requirement, $isContainTime)) {
+                // 避免定时任务重复执行
+                if ($isContainTime
+                    && isset($timeTable[$job['id']])
+                    && $timeTable[$job['id']] === date('Y-m-d H:i')
+                ) {
+                    return;
+                }
+                $timeTable[$job['id']] = date('Y-m-d H:i');
                 doAction($db, $job['action_id']);
             }
         }
     });
-
+    // 获取设备状态
     Timer::add(3, function () use ($db) {
         $devices = $db->select('*')->from('devices')->query();
         if (empty($devices)) {
@@ -55,6 +67,17 @@ $worker->onWorkerStart = function (Worker $worker) {
             $connection->send('status|status');
             $connection->close();
         }
+    });
+    // 更新服务器时间
+    Timer::add(30, function () use ($db) {
+        $device = $db->select('*')->from('devices')->where('type="server"')->limit(1)->query();
+        if (empty($device) || !isset($device[0])) {
+            return;
+        }
+        $device = $device[0];
+        $device['status'] = "{\"time\":\"" . date('Y-m-d H:i:s') . "\"}";
+        $device['updated_at'] = date('Y-m-d H:i:s');
+        $db->update('devices')->cols($device)->where("id = {$device['id']}")->query();
     });
 };
 

@@ -9,7 +9,7 @@ use Workerman\MySQL\Connection;
 use Workerman\Connection\AsyncUdpConnection;
 use Workerman\Connection\UdpConnection;
 
-function checkScene(Connection $connection, array $requirement)
+function checkScene(Connection $connection, array $requirement, &$isContainTime)
 {
     // 获取条件关联的硬件
     $ids = array_column($requirement, 'id');
@@ -48,6 +48,7 @@ function checkScene(Connection $connection, array $requirement)
                 echo "传感器 {$devices[$rule['id']]['name']} 的 {$rule['property']} 符合条件" . PHP_EOL;
                 break;
             case 'server':
+                $isContainTime = true;
                 if (!checkServer($rule)) {
                     echo "不符合条件 - 服务器时间" . PHP_EOL;
                     return false;
