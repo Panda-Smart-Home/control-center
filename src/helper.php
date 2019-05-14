@@ -25,6 +25,12 @@ function checkScene(Connection $connection, array $requirement, &$isContainTime)
     // id => [...]
     $devices = [];
     foreach ($rawDevices as $device) {
+        $updateAt = new DateTime($device['updated_at']);
+        $now = new DateTime('now');
+        $seconds = $now->getTimestamp() - $updateAt->getTimestamp();
+        if ($seconds > 10) {
+            return false;
+        }
         $device['status'] = json_decode($device['status'], true);
         $devices[$device['id']] = $device;
     }
