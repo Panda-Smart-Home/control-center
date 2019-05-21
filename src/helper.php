@@ -25,6 +25,7 @@ function checkScene(Connection $connection, array $requirement, &$isContainTime)
     // id => [...]
     $devices = [];
     foreach ($rawDevices as $device) {
+        // 确认硬件在线
         $updateAt = new DateTime($device['updated_at']);
         $now = new DateTime('now');
         $seconds = $now->getTimestamp() - $updateAt->getTimestamp();
@@ -53,6 +54,13 @@ function checkScene(Connection $connection, array $requirement, &$isContainTime)
                 }
                 echo "传感器 {$devices[$rule['id']]['name']} 的 {$rule['property']} 符合条件" . PHP_EOL;
                 break;
+            case 'lightSensor':
+                if (!checkLightSensor($rule, $devices[$rule['id']])) {
+                    echo "不符合条件 - 传感器 {$devices[$rule['id']]['name']} 的 {$rule['property']}" . PHP_EOL;
+                    return false;
+                }
+                break;
+            // TODO more devices extension
             case 'server':
                 $isContainTime = true;
                 if (!checkServer($rule)) {
@@ -95,6 +103,18 @@ function checkSensirion(array $rule, array $device)
             return (float)$device['status'][$rule['property']] >= (float)$rule['value'];
         case 2:
             return (float)$device['status'][$rule['property']] > (float)$rule['value'];
+    }
+    return false;
+}
+
+function checkLightSensor(array $rule, array $device)
+{
+    if ($rule['property'] === 'isLight') {
+        if ($rule['operator']) {
+            return $rule['value'] === $device['status']['isLight'];
+        } else {
+            return $rule['value'] != $device['status']['isLight'];
+        }
     }
     return false;
 }
@@ -198,6 +218,9 @@ function deviceTypeToName($type)
             return '熊猫智能插座';
         case 'sensirion':
             return '熊猫温湿度传感器';
+        case 'lightSensor':
+            return '熊猫光敏传感器';
+        // TODO more devices extension
     }
     return '未知设备';
 }
@@ -209,6 +232,9 @@ function deviceTypeToStatus($type)
             return '{"power":false}';
         case 'sensirion':
             return '{"temperature":0.00,"humidity":0.00}';
+        case 'lightSensor':
+            return '{"isLight":false}';
+        // TODO more devices extension
     }
     return '{}';
 }
@@ -231,6 +257,10 @@ function updateStatus(Connection $db, array $data)
         case 'sensirion':
             updateSensirionStatus($db, $device, $status);
             return;
+        case 'lightSensor':
+            updateLightSensorStatus($db, $device, $status);
+            return;
+        // TODO more devices extension
     }
 }
 
@@ -251,6 +281,16 @@ function updateSensirionStatus(Connection $db, $device, $data)
         return;
     }
     $device['status'] = "{\"temperature\":{$data[0]},\"humidity\":{$data[1]}}";
+    $db->update('devices')->cols($device)->where("id = {$device['id']}")->query();
+}
+
+function updateLightSensorStatus(Connection $db, $device, $isLight)
+{
+    if ($isLight == 'onLight') {
+        $device['status'] = '{"isLight":true}';
+    } else {
+        $device['status'] = '{"isLight":false}';
+    }
     $db->update('devices')->cols($device)->where("id = {$device['id']}")->query();
 }
 

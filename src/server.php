@@ -69,7 +69,7 @@ $worker->onWorkerStart = function (Worker $worker) {
         }
     });
     // 更新服务器时间
-    Timer::add(30, function () use ($db) {
+    Timer::add(5, function () use ($db) {
         $device = $db->select('*')->from('devices')->where('type="server"')->limit(1)->query();
         if (empty($device) || !isset($device[0])) {
             return;
