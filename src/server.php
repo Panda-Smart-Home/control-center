@@ -75,7 +75,9 @@ $worker->onWorkerStart = function (Worker $worker) {
             return;
         }
         $device = $device[0];
-        $device['status'] = "{\"time\":\"" . date('Y-m-d H:i:s') . "\"}";
+        $status = json_decode($device['status'], true);
+        $status['time'] = date('Y-m-d H:i:s');
+        $device['status'] = json_encode($status);
         $device['updated_at'] = date('Y-m-d H:i:s');
         $db->update('devices')->cols($device)->where("id = {$device['id']}")->query();
     });
