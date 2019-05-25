@@ -58,7 +58,7 @@ $worker->onWorkerStart = function (Worker $worker) {
         }
         foreach ($devices as $device) {
             if ($device['ip'] == '0.0.0.0') {
-                return;
+                continue;
             }
             $connection = new AsyncUdpConnection("udp://{$device['ip']}:9527");
             $connection->connect();
