@@ -16,7 +16,7 @@ $worker->dbConfig = require 'config.php';
 
 $worker->onWorkerStart = function (Worker $worker) {
     global $db;
-    global $timeTable;
+    global $jobTable;
     $db = new Mysql(
         $worker->dbConfig['host'],
         $worker->dbConfig['port'],
@@ -24,9 +24,9 @@ $worker->onWorkerStart = function (Worker $worker) {
         $worker->dbConfig['pass'],
         $worker->dbConfig['db']
     );
-    $timeTable = [];
+    $jobTable = [];
     // 执行任务
-    Timer::add(2, function () use ($db, &$timeTable) {
+    Timer::add(2, function () use ($db, &$jobTable) {
         $jobs = $db->select('*')->from('jobs')->query();
         foreach ($jobs as $job) {
             // 获取场景
@@ -38,17 +38,15 @@ $worker->onWorkerStart = function (Worker $worker) {
             // 获取场景条件
             $requirement = json_decode($scene[0]['requirement'], true);
             // 检查是否满足场景要求
-            $isContainTime = false;
-            if (checkScene($db, $requirement, $isContainTime)) {
-                // 避免定时任务重复执行
-                if ($isContainTime
-                    && isset($timeTable[$job['id']])
-                    && $timeTable[$job['id']] === date('Y-m-d H:i')
-                ) {
-                    return;
+            if (checkScene($db, $requirement)) {
+                // 避免任务重复执行
+                if (isset($jobTable[$job['id']]) && $jobTable[$job['id']]) {
+                    continue;
                 }
-                $timeTable[$job['id']] = date('Y-m-d H:i');
-                doAction($db, $job['action_id']);
+                $jobTable[$job['id']] = true;
+                doAction($db, $job, $scene[0]);
+            } else {
+                $jobTable[$job['id']] = false;
             }
         }
     });

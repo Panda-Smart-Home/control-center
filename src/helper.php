@@ -8,8 +8,11 @@
 use Workerman\MySQL\Connection;
 use Workerman\Connection\AsyncUdpConnection;
 use Workerman\Connection\UdpConnection;
+use AlibabaCloud\Client\AlibabaCloud;
+use AlibabaCloud\Client\Exception\ClientException;
+use AlibabaCloud\Client\Exception\ServerException;
 
-function checkScene(Connection $connection, array $requirement, &$isContainTime)
+function checkScene(Connection $connection, array $requirement)
 {
     // 获取条件关联的硬件
     $ids = array_column($requirement, 'id');
@@ -62,7 +65,6 @@ function checkScene(Connection $connection, array $requirement, &$isContainTime)
                 break;
             // TODO more devices extension
             case 'server':
-                $isContainTime = true;
                 if (!checkServer($rule)) {
                     echo "不符合条件 - 服务器时间" . PHP_EOL;
                     return false;
@@ -137,8 +139,9 @@ function checkServer(array $rule)
     return false;
 }
 
-function doAction(Connection $connection, $actionId)
+function doAction(Connection $connection, $job, $scene)
 {
+    $actionId = $job['action_id'];
     // 获取 action
     $action = $connection->select('*')->from('actions')->where("id = $actionId")->query();
     if (empty($action) || !isset($action[0])) {
@@ -163,8 +166,18 @@ function doAction(Connection $connection, $actionId)
     }
     // 执行操作
     foreach ($todo as $item) {
-        if ($devices[$item['id']]['type'] === 'power') {
+        // 获取对应设备信息
+        $device = $devices[$item['id']] ?? null;
+        if (empty($device)) {
+            continue;
+        }
+        // 根据设备类型执行操作
+        if ($device['type'] === 'power') {
             doPowerAction($item['value'], $devices[$item['id']]['ip']);
+        } elseif ($device['type'] === 'server') {
+            if (isset($device['status']['phone'])) {
+                doMessageAction($device['status']['phone'], $scene['name'], $action['name']);
+            }
         }
     }
     return true;
@@ -180,6 +193,41 @@ function doPowerAction($switch, $ip)
         $connection->send('off|action');
     }
     $connection->close();
+}
+
+function doMessageAction($phone, $sceneName, $actionName)
+{
+    if (empty($phone) || !is_numeric($phone)) {
+        return;
+    }
+    // 调用阿里云短信服务
+    AlibabaCloud::accessKeyClient('LTAIBA66RHA8s9pM', 'FLLFLVqHPVys5pmEtiRd7HzC1vzDix')
+        ->regionId('cn-hangzhou') // replace regionId as you need
+        ->asDefaultClient();
+    try {
+        $result = AlibabaCloud::rpc()
+            ->product('Dysmsapi')
+            // ->scheme('https') // https | http
+            ->version('2017-05-25')
+            ->action('SendSms')
+            ->method('POST')
+            ->options([
+                'query' => [
+                    'RegionId' => 'cn-hangzhou',
+                    'PhoneNumbers' => $phone,
+                    'SignName' => '熊猫智居',
+                    'TemplateCode' => 'SMS_166377099',
+                    'TemplateParam' =>
+                        "{\"phone\":\"$phone\",\"sceneName\":\"$sceneName\",\"actionName\":\"$actionName\"}",
+                ],
+            ])
+            ->request();
+        print_r($result->toArray());
+    } catch (ClientException $e) {
+        echo $e->getErrorMessage() . PHP_EOL;
+    } catch (ServerException $e) {
+        echo $e->getErrorMessage() . PHP_EOL;
+    }
 }
 
 function onDeviceConnect(Connection $db, UdpConnection $connection, array $data)

@@ -12,6 +12,8 @@
         "ext-json": "*",
         "ext-sockets": "*",
         "workerman/workerman": "^3.5",
-        "workerman/mysql": "^1.0"
+        "workerman/mysql": "^1.0",
+        "guzzlehttp/guzzle": "^6.3",
+        "alibabacloud/sdk": "^1.6"
     }
 }
