@@ -201,7 +201,8 @@ function doMessageAction($phone, $sceneName, $actionName)
         return;
     }
     // 调用阿里云短信服务
-    AlibabaCloud::accessKeyClient('LTAIBA66RHA8s9pM', 'FLLFLVqHPVys5pmEtiRd7HzC1vzDix')
+    $aliConfig = require 'ali_config.php';
+    AlibabaCloud::accessKeyClient($aliConfig['id'], $aliConfig['key'])
         ->regionId('cn-hangzhou') // replace regionId as you need
         ->asDefaultClient();
     try {
