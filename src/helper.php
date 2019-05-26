@@ -299,6 +299,9 @@ function updateStatus(Connection $db, array $data)
         return;
     }
     $device = $device[0];
+    // 更新设备时间
+    $device['updated_at'] = date('Y-m-d H:i:s');
+    $db->update('devices')->cols($device)->where("id = $id")->query();
     switch ($device['type']) {
         case 'power':
             updatePowerStatus($db, $device, $status);
