@@ -57,7 +57,15 @@ $worker->onWorkerStart = function (Worker $worker) {
             return;
         }
         foreach ($devices as $device) {
+            // 未确定IP不查询状态
             if ($device['ip'] == '0.0.0.0') {
+                continue;
+            }
+            // 不在线不查询状态
+            $updateAt = new DateTime($device['updated_at']);
+            $now = new DateTime('now');
+            $seconds = $now->getTimestamp() - $updateAt->getTimestamp();
+            if ($seconds > 10) {
                 continue;
             }
             $connection = new AsyncUdpConnection("udp://{$device['ip']}:9527");
