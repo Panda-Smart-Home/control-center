@@ -104,4 +104,6 @@ $worker->onMessage = function (UdpConnection $connection, $data) {
     }
 };
 
+sleep(5);
+
 Worker::runAll();
